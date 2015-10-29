@@ -1,6 +1,8 @@
 Unreleased Changes
 ------------------
 
+* Feature - Aws::CloudFormation - Added `Aws::CloudFormation::Stack#create`
+
 2.2.10 (2016-01-12)
 ------------------
 
