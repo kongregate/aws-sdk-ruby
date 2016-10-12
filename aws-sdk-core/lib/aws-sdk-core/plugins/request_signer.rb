@@ -49,9 +49,8 @@ module Aws
 
       option(:sigv4_region) do |cfg|
         prefix = cfg.api.metadata['endpointPrefix']
-        endpoint = cfg.endpoint.to_s
-        if matches = endpoint.match(/#{prefix}[.-](.+)\.amazonaws\.com/)
-          matches[1] == 'us-gov' ? 'us-gov-west-1' : matches[1]
+        if prefix.nil?
+          cfg.region
         elsif cfg.endpoint.to_s.match(/#{prefix}\.amazonaws\.com/)
           'us-east-1'
         else
@@ -123,7 +122,15 @@ module Aws
 
       def add_handlers(handlers, config)
         # See the S3RequestSignerPlugin for Amazon S3 signature logic
-        handlers.add(Handler, step: :sign) unless config.sigv4_name == 's3'
+        unless config.sigv4_name == 's3'
+          operations = []
+          config.api.operation_names.each do |operation_name|
+            if config.api.operation(operation_name)['authtype'] != 'none'
+              operations << operation_name
+            end
+          end
+          handlers.add(Handler, step: :sign, operations: operations)
+        end
       end
 
     end

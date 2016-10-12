@@ -1,5 +1,7 @@
 require 'base64'
-require 'rest-client'
+require 'net/https'
+require 'net/http/post/multipart'
+require 'uri'
 
 Before("@s3") do
   @s3 = Aws::S3::Resource.new
@@ -8,16 +10,7 @@ end
 
 After("@s3") do
   @created_buckets.each do |bucket|
-    # TODO : provide a Bucket#delete! method
-    loop do
-      objects = bucket.client.list_object_versions(bucket: bucket.name)
-      objects = objects.data.versions.map do |v|
-        { key: v.key, version_id: v.version_id }
-      end
-      break if objects.empty?
-      bucket.client.delete_objects(bucket: bucket.name, delete: { objects: objects })
-    end
-    bucket.delete
+    bucket.delete!
   end
 end
 
@@ -34,6 +27,17 @@ Given(/^I have a (\d+)MB file$/) do |size|
 end
 
 When(/^I upload the file to the "(.*?)" object$/) do |key|
+  @bucket.object(key).upload_file(@file)
+end
+
+When(/^I upload the file to the "(.*?)" object with SSE\/CPK$/) do |key|
+  require 'openssl'
+  cipher = OpenSSL::Cipher::AES256.new(:CBC)
+  ecnryption_key = cipher.random_key
+  @bucket.object(key).upload_file(@file, {
+    sse_customer_key: ecnryption_key,
+    sse_customer_algorithm: 'AES256'
+  })
   @bucket.object(key).upload_file(@file)
 end
 
@@ -69,7 +73,7 @@ When(/^I perform an encrypted PUT of the value "(.*?)"$/) do |value|
   @cse.put_object(bucket: @bucket_name, key: @key, body: @plain_text)
 end
 
-When(/^I GET the object with a non\-encyrption client$/) do
+When(/^I GET the object with a non\-encryption client$/) do
   @cipher_text = @s3.client.get_object(bucket: @bucket_name, key: @key).body.read
 end
 
@@ -98,8 +102,15 @@ When(/^I create a presigned post$/) do
 end
 
 Then(/^I should be able to POST an object to the form url$/) do
-  r = RestClient.post(@post.url, @post.fields.merge(file: File.open(__FILE__, 'r')))
-  expect(r.code).to eq(201)
+  uri = URI.parse(@post.url)
+  req = Net::HTTP::Post::Multipart.new(uri.request_uri, @post.fields.merge(
+    "file" => UploadIO.new(File.open(__FILE__, 'r'), 'text/plain')
+  ))
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+  http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+  resp = http.request(req)
+  expect(resp.code.to_i).to eq(201)
 end
 
 Given(/^I have an encryption client configured to read a Java encrypted object$/) do
@@ -118,4 +129,11 @@ Then(/^I should be able to multipart copy the object to a different bucket$/) do
   target_object = target_bucket.object("#{@source_key}-copy")
   target_object.copy_from("#{@source_bucket}/#{@source_key}", multipart_copy: true)
   expect(ApiCallTracker.called_operations).to include(:create_multipart_upload)
+end
+
+Then(/^I should be able to multipart copy the object$/) do
+  target_bucket = @s3.bucket(@bucket_name)
+  target_object = target_bucket.object("test object-copy")
+  target_object.copy_from("#{@bucket_name}/test object", multipart_copy: true)
+  expect(ApiCallTracker.called_operations).to include(:create_multiparty_upload)
 end

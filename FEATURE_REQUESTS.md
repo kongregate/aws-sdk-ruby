@@ -10,6 +10,167 @@ We can be found in our [Gitter channel](http://gitter.im/aws/aws-sdk-ruby) and o
 
 ## Ideas
 
+### Handle S3 #exists? Edge Cases
+
+See [related GitHub issue #1267](https://github.com/aws/aws-sdk-ruby/issues/1267).
+
+### Retry S3 Transfers on BadDigest Error
+
+See [related GitHub issue #1264](https://github.com/aws/aws-sdk-ruby/issues/1264).
+
+### Add Waiters for Aws::ElasticBeanstalk
+
+See [related GitHub issue #1259](https://github.com/aws/aws-sdk-ruby/issues/1259).
+
+### Provide an Interface to Interact With Shared Configuration Values
+
+The SDK uses the Shared Credential and Configuration files at various points
+within the default credential provider chain, and other places. However, there
+is not currently a way to interact with these raw configuration values. This
+request is to expose these values in a consistent and usable way.
+
+See [related GitHub issue #1256](https://github.com/aws/aws-sdk-ruby/issues/1256).
+
+### Expose Raw Exception Response Bodies
+
+The SDK uses first the exception response `__type` field, then the `ErrorCode`
+field, to determine the exception's code. However, the related issue shows at
+least one case where the `ErrorCode` field would be the more descriptive error.
+We cannot change the exception classing behavior now, but exposing the raw
+exception response fields could improve the exception handling experience.
+
+See [related GitHub issue #1189](https://github.com/aws/aws-sdk-ruby/issues/1189).
+
+### Add Waiters for Aws::SSM
+
+See [related GitHub issue #1185](https://github.com/aws/aws-sdk-ruby/issues/1185).
+
+### Customize Request HTTP Verbs
+
+Some services accept multiple HTTP verbs, potentially with differing behavior.
+This feature request would be to investigate how multiple HTTP verbs could be
+supported.
+
+See [related GitHub issue #1181](https://github.com/aws/aws-sdk-ruby/issues/1181).
+
+### Cache-Friendly Presigned URLs
+
+Add functionality to the presigner to improve the experience of generating cache
+friendly presigned URLs. For example:
+
+```ruby
+req = s3.presigned_request(:get_object, bucket:'...', key: '...')
+req.uri #=> "https://..."
+req.headers #=> { ... } authorization in here
+```
+
+See [related GitHub issue #1152](https://github.com/aws/aws-sdk-ruby/issues/1152).
+
+### Add Option to Create Unsigned Requests
+
+Add support to make unsigned calls using the SDK. Can be useful for cases such
+as anonymously downlading S3 objects that have a `public-read` ACL.
+
+See [related GitHub issue #1149](https://github.com/aws/aws-sdk-ruby/issues/1149).
+
+### Enhance Aws::AutoScaling::Resource to Surface Tag Values in Collection
+
+Not all Auto Scaling tag resources surface the value, should be doable with
+existing client calls within the resource.
+
+See [related GitHub issue #1145](https://github.com/aws/aws-sdk-ruby/issues/1145).
+
+### Programmable Stubs
+
+Provide an easy way to create stubbed clients that have programmable behavior.
+
+See [related GitHub issue #1120](https://github.com/aws/aws-sdk-ruby/issues/1120).
+
+### Add Interface to Create Custom Waiters
+
+For cases where a particular waiter doesn't exist, this request would provide an
+interface with which someone could define a waiter in code, rather than having
+to alter the SDK source JSON files.
+
+See [related GitHub issue #1047](https://github.com/aws/aws-sdk-ruby/issues/1047).
+
+### Add Header Whitelist for Request Signing
+
+There are many headers that we blacklist from adding to the signed request. For
+example, the blacklist includes some headers that can be legally modified in
+transit, increasing the risk of signature errors despite a properly constructed
+request.
+
+This feature request is to allow users to manually whitelist a header to be
+signed. In essence, that user would be certifying "I know that this header will
+not be modified in transit or be otherwise changed, so sign it."
+
+See [related GitHub issue #1051](https://github.com/aws/aws-sdk-ruby/issues/1051).
+
+### Add Injectable Timestamp to Presigner
+
+Since the signing logic uses `now` for the signing time, the
+`Aws::S3::Presigner` class will always generate unique URLs, though use cases
+can exist for wanting consistency across generated URLs. The ask would be to add
+support for an injectable timestamp into signing via the presigner.
+
+See [related GitHub issue #1013](https://github.com/aws/aws-sdk-ruby/issues/1013).
+
+### Accept AWS CLI Output for Stubbed Responses
+
+There are some format differences between the input/output shapes of the AWS CLI
+and the AWS SDK for Ruby. Supporting a transformation between these two formats
+could be useful if using actual AWS CLI output as stubbed output for Ruby tests.
+
+See [related GitHub issue #970](https://github.com/aws/aws-sdk-ruby/issues/970).
+
+### Add SDK Performance Metrics in Amazon CloudWatch
+
+Similar to the
+[AWS SDK for Java's feature](https://java.awsblog.com/post/Tx3C0RV4NRRBKTG/Enabling-Metrics-with-the-AWS-SDK-for-Java).
+
+This would create a plugin that takes metrics about API call performance and
+possibly other SDK performance metrics, and would enable automatic uploads to
+Amazon CloudWatch.
+
+### Add Pagination Support for Amazon CloudSearch Domain Client
+
+The current spec for pagination is not able to support the response structure of
+the `Aws::CloudSearchDomain::Client#search` API, for example. The feature
+request is to either add a custom CloudSearch Domain pagination plugin, or to
+enhance pagination in general to support this type of response.
+
+See [related GitHub issue #984](https://github.com/aws/aws-sdk-ruby/issues/984).
+
+### Add Support for Copying Object Versions to Aws::S3::Resource
+
+You can copy Amazon S3 object versions to a new Amazon S3 object using the
+`Aws::S3::Client#copy_from` operation. However, there isn't currently a way to
+do this in the resource interface. This is a feature request to add that support
+to the `Aws::S3::Resource` interface.
+
+See [related GitHub issue #969](https://github.com/aws/aws-sdk-ruby/issues/969).
+
+### Add Multipart Download Helper(s)
+
+The SDK already has a multipart upload helper for Amazon S3, but doing a GET request
+for very large objects can be problematic using the client directly. Byte ranged
+requests allow the user to circumvent the issue, but this could be distilled
+into a high level helper class that manages multipart downloads in this manner.
+
+See [related GitHub issue #990](https://github.com/aws/aws-sdk-ruby/issues/990)
+for an example related to Amazon S3.
+
+See [related GitHub issue #987](https://github.com/aws/aws-sdk-ruby/issues/987)
+for an example related to the Amazon RDS client (similar, not identical,
+pattern).
+
+### Add accelerate endpoint support to presigned POST requests
+
+The presigned POST utility does not support pre-signing Amazon S3 acclerated
+bucket endpoints. Explore adding an explicit configuration option to enable this,
+or determine this by looking at the client configuration.
+
 ### Add ability to pre-sign a request
 
 To work around limitations of S3 bucket policies, it is necessary to send certain headers
@@ -41,24 +202,6 @@ Adding a retry limit for instance profile credentials might be a possible soluti
 
 See [related GitHub issue #717](https://github.com/aws/aws-sdk-ruby/issues/717).
 
-### Add Region Enumeration
-
-Add the ability to programmatically determine what region a specific service is available in. Some useful interfaces include:
-
-* pass the service name; return a list of supported regions
-* pass a region; return a list of supported services.
-* pass service_name and region; return true/false if region supports that service
-
-This feature would be an interface for the information provided here http://docs.aws.amazon.com/general/latest/gr/rande.html#ct_region
-
-See [related GitHub issue #926](https://github.com/aws/aws-sdk-ruby/issues/926).
-
-### Signed CloudFront URLs
-
-Amazon CloudFront supports pre-signed URLs, similar to those used by Amazon S3. It would be helpful to have a pre-signed url builder for SDK users.
-
-See [related GitHub issue #700](https://github.com/aws/aws-sdk-ruby/issues/700).
-
 ### Progress callbacks for Amazon S3 Object uploads
 
 To enable users to track file upload process, it would be helpful to support a progress callback for `Aws::S3::Object#upload_file`.
@@ -71,8 +214,10 @@ The `#predict` operation of `Aws::MachineLearning::Client` accepts a map of stri
 
 See [related GitHub issue #878](https://github.com/aws/aws-sdk-ruby/issues/878).
 
-### Support Assume Role Credentials from Shared Credentials File
+### Support Raw credential objects from AWS API responses in config
 
-You can currently only configure an access key id, secret access key, and session token in the shared credentials file, `~/.aws/credentials`. It would be useful if you could also specify a role to assume similar to how the CLI supports.
+See [related GitHub issue #1009](https://github.com/aws/aws-sdk-ruby/issues/1009).
 
-See [related GitHub issue #910](https://github.com/aws/aws-sdk-ruby/issues/910).
+### Add a helper for parsing DynamoDB stream events
+
+See [related GitHub issue #1212](https://github.com/aws/aws-sdk-ruby/issues/1212).

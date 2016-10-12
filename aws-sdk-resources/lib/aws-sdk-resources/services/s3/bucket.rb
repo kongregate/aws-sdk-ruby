@@ -12,7 +12,7 @@ module Aws
       #
       # @return [void]
       def clear!
-        object_versions.delete
+        object_versions.batch_delete!
       end
 
       # Deletes all objects and versioned objects from this bucket and
@@ -22,10 +22,34 @@ module Aws
       #
       #   bucket.delete!
       #
+      # @option options [Integer] :max_attempts (3) Maximum number of times to
+      #   attempt to delete the empty bucket before raising
+      #   `Aws::S3::Errors::BucketNotEmpty`.
+      #
+      # @option options [Float] :initial_wait (1.3) Seconds to wait before
+      #   retrying the call to delete the bucket, exponentially increased for
+      #   each attempt.
+      #
       # @return [void]
-      def delete!
-        clear!
-        delete
+      def delete! options = { }
+        options = {
+          initial_wait: 1.3,
+          max_attempts: 3,
+        }.merge(options)
+
+        attempts = 0
+        begin
+          clear!
+          delete
+        rescue Errors::BucketNotEmpty
+          attempts += 1
+          if attempts >= options[:max_attempts]
+            raise
+          else
+            Kernel.sleep(options[:initial_wait] ** attempts)
+            retry
+          end
+        end
       end
 
       # Returns a public URL for this bucket.
@@ -69,7 +93,8 @@ module Aws
           client.config.credentials,
           client.config.region,
           name,
-          options)
+          {url: url}.merge(options)
+        )
       end
 
       # @api private

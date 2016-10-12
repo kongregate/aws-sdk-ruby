@@ -28,7 +28,11 @@ module Aws
 
         # @option [required, String] :argument
         def extract(options)
-          (options[:args] || []).first
+          (options[:args] || [])[@source]
+        end
+
+        def plural?
+          false
         end
 
       end
@@ -82,6 +86,17 @@ module Aws
         # @option [required, Seahorse::Client::Response] :response
         def extract(options)
           JMESPath.search(@source, options[:response].data)
+        end
+
+      end
+
+      # Supplies a string literal.
+      class StringLiteral
+
+        include Source
+
+        def extract(options)
+          @source
         end
 
       end

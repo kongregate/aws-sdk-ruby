@@ -44,6 +44,19 @@ module Aws
 
       end
 
+      describe 'unlinked tempfiles' do
+        it 'can put an unlinked file descriptor' do
+          data = '.' * 1024 * 1024
+          tmpfile = Tempfile.new('tmp')
+          tmpfile.write(data)
+          tmpfile.rewind
+          tmpfile.unlink
+          s3 = Client.new(stub_responses: true)
+          resp = s3.put_object(bucket:'bucket', key:'key', body: tmpfile)
+          expect(resp.context.http_request.body_contents).to eq(data)
+        end
+      end
+
       describe 'closed files' do
 
         it 'accepts closed File objects' do
@@ -102,37 +115,6 @@ module Aws
           "sa-east-1",
           "eu-west-1",
           "us-gov-west-1",
-        ].each do |region|
-
-          it "defaults signature version 4 for #{region}" do
-            client = Client.new(stub_responses: true, region: region)
-            resp = client.head_object(bucket:'name', key:'key')
-            expect(resp.context.http_request.headers['authorization']).to match(
-              'AWS4-HMAC-SHA256')
-          end
-
-          it "falls back on classic S3 signing for #put_object in #{region}" do
-            client = Client.new(stub_responses: true, region: region)
-            resp = client.put_object(bucket:'name', key:'key', body:'data')
-            expect(resp.context.http_request.headers['authorization']).to match(
-              'AWS akid:')
-          end
-
-          it "forces v4 signing when aws:kms used for server side encryption" do
-            client = Client.new(stub_responses: true, region: region)
-            resp = client.put_object(
-              bucket: 'name',
-              key: 'key',
-              server_side_encryption: 'aws:kms',
-              body: 'data'
-            )
-            expect(resp.context.http_request.headers['authorization']).to match(
-              'AWS4-HMAC-SHA256')
-          end
-
-        end
-
-        [
           "cn-north-1",
           "eu-central-1",
           "unknown-region",
@@ -165,14 +147,7 @@ module Aws
           end
         end
 
-        it "defaults classic s3 signature us-east-1" do
-          client = Client.new(stub_responses: true, region: 'us-east-1')
-          resp = client.head_object(bucket:'name', key:'key')
-          expect(resp.context.http_request.headers['authorization']).to match(
-            'AWS akid:')
-        end
-
-        it "upgrades to signature version 4 when aws:kms used for sse" do
+        it "uses signature version 4 when aws:kms used for sse" do
           client = Client.new(stub_responses: true, region: 'us-east-1')
           resp = client.put_object(
             bucket: 'name',
@@ -182,6 +157,17 @@ module Aws
           )
           expect(resp.context.http_request.headers['authorization']).to match(
             'AWS4-HMAC-SHA256')
+        end
+
+        it 'raises a runtime error on unsupported signature version' do
+          client = Client.new(
+            signature_version: 'v2',
+            stub_responses: true,
+            region: 'us-east-1'
+          )
+          expect {
+            client.head_object(bucket:'name', key:'key')
+          }.to raise_error(/unsupported/)
         end
 
       end
@@ -215,6 +201,43 @@ module Aws
           expect(s3.config.endpoint.to_s).to eq('https://s3-us-gov-west-1.amazonaws.com')
         end
 
+      end
+
+      describe 'invalid Expires header' do
+        %w(get_object head_object).each do |method|
+
+          it "correctly handled invalid Expires header for #{method}" do
+            s3 = Client.new
+            s3.handle(step: :send) do |context|
+              context.http_response.signal_headers(200, {'Expires' => 'abc'})
+              context.http_response.signal_done
+              Seahorse::Client::Response.new(context: context)
+            end
+            resp = s3.send(method, bucket:'b', key:'k')
+            expect(resp.expires).to be(nil)
+            expect(resp.expires_string).to eq('abc')
+          end
+
+          it 'accepts a stubbed Expires header as a Time value' do
+            now = Time.at(Time.now.to_i)
+            s3 = Client.new(stub_responses: {
+              method.to_sym => { expires: now }
+            })
+            resp = s3.send(method, bucket:'b', key:'k')
+            expect(resp.expires).to eq(now)
+            expect(resp.expires_string).to eq(now.httpdate)
+          end
+
+          it 'accepts a stubbed Expires header as String value' do
+            s3 = Client.new(stub_responses: {
+              method.to_sym => { expires_string: 'abc' }
+            })
+            resp = s3.send(method, bucket:'b', key:'k')
+            expect(resp.expires).to be(nil)
+            expect(resp.expires_string).to eq('abc')
+          end
+
+        end
       end
 
       describe '#create_bucket' do
@@ -265,6 +288,13 @@ module Aws
       end
 
       describe '#list_objects' do
+
+        it 'raises an error of the bucket name contains a forward slash' do
+          client = Client.new(stub_responses: true)
+          expect {
+            client.list_objects(bucket:'bucket-name/key-prefix')
+          }.to raise_error(ArgumentError, ":bucket option must not contain a forward-slash (/)")
+        end
 
         it 'request url encoded keys and decodes them by default' do
           client.handle(step: :send) do |context|

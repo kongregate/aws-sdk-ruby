@@ -5,20 +5,37 @@ module Aws
       alias size content_length
 
       # Copies another object to this object. Use `multipart_copy: true`
-      # for large objects. This is required for objects that exceed 5GB.'
+      # for large objects. This is required for objects that exceed 5GB.
       #
-      # @param [S3::Object, String, Hash] source Where to copy object
-      #   data from. `source` must be one of the following:
+      # @param [S3::Object, S3::ObjectVersion, S3::ObjectSummary, String, Hash] source
+      #   Where to copy object data from. `source` must be one of the following:
       #
       #   * {Aws::S3::Object}
-      #   * Hash - with `:bucket` and `:key`
-      #   * String - formatted like `"source-bucket-name/source-key"`
+      #   * {Aws::S3::ObjectSummary}
+      #   * {Aws::S3::ObjectVersion}
+      #   * Hash - with `:bucket` and `:key` and optional `:version_id`
+      #   * String - formatted like `"source-bucket-name/uri-escaped-key"`
+      #     or `"source-bucket-name/uri-escaped-key?versionId=version-id"`
       #
       # @option options [Boolean] :multipart_copy (false) When `true`,
       #   the object will be copied using the multipart APIs. This is
       #   necessary for objects larger than 5GB and can provide
       #   performance improvements on large objects. Amazon S3 does
       #   not accept multipart copies for objects smaller than 5MB.
+      #
+      # @option options [Integer] :content_length Only used when
+      #   `:multipart_copy` is `true`. Passing this options avoids a HEAD
+      #   request to query the source object size.
+      #
+      # @option options [S3::Client] :copy_source_client Only used when
+      #   `:multipart_copy` is `true` and the source object is in a
+      #   different region. You do not need to specify this option
+      #   if you have provided `:content_length`.
+      #
+      # @option options [String] :copy_source_region Only used when
+      #   `:multipart_copy` is `true` and the source object is in a
+      #   different region. You do not need to specify this option
+      #   if you have provided a `:source_client` or a `:content_length`.
       #
       # @example Basic object copy
       #
@@ -89,7 +106,7 @@ module Aws
       # Copies and deletes the current object. The object will only be
       # deleted if the copy operation succeeds.
       # @param (see Object#copy_to)
-      # @options (see Object#copy_to)
+      # @option (see Object#copy_to)
       # @return [void]
       # @see Object#copy_to
       # @see Object#delete
@@ -157,7 +174,10 @@ module Aws
       #
       # @option params [Integer] :expires_in (900) Number of seconds before
       #   the pre-signed URL expires. This may not exceed one week (604800
-      #   seconds).
+      #   seconds). Note that the pre-signed URL is also only valid as long as
+      #   credentials used to sign it are. For example, when using IAM roles,
+      #   temporary tokens generated for signing also have a default expiration
+      #   which will affect the effective expiration of the pre-signed URL.
       #
       # @raise [ArgumentError] Raised if `:expires_in` exceeds one week
       #   (604800 seconds).

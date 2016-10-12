@@ -43,20 +43,24 @@ collection. {#{called_operation}} will be called multiple times until every
         end
 
         def batch_examples_tag
-          example = "@example Batch operations callable on the returned collection"
-          target_resource_batch_operations.each do |name|
-            example << "\n  #{variable_name}.#{@operation_name}.#{name}"
+          example = []
+          example << "@example Batch operations callable on the returned collection"
+          target_resource_batch_operations.each do |name, operation|
+            if operation.respond_to?(:request)
+              example << ""
+              example << "  # calls Client##{operation.request.method_name} on each batch"
+              example << "  #{variable_name}.#{@operation_name}.#{name}"
+            end
           end
-          tag(example)
+          tag(example.join("\n"))
         end
 
         def target_resource_batches?
-          target_resource_class.const_defined?(:Batch) &&
           target_resource_batch_operations.count > 0
         end
 
         def target_resource_batch_operations
-          target_resource_class::Batch.operation_names
+          target_resource_class.batch_operations
         end
 
       end

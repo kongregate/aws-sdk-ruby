@@ -15,7 +15,7 @@ module Aws
       option(:stub_responses, false)
 
       option(:region) do |config|
-        'stubbed-region' if config.stub_responses
+        'us-stubbed-1' if config.stub_responses
       end
 
       option(:credentials) do |config|
@@ -38,7 +38,7 @@ module Aws
       class Handler < Seahorse::Client::Handler
 
         def call(context)
-          stub = context.client.next_stub(context.operation_name)
+          stub = context.client.next_stub(context)
           resp = Seahorse::Client::Response.new(context: context)
           apply_stub(stub, resp)
           resp

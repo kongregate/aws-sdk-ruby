@@ -4,7 +4,15 @@ gemspec path: 'aws-sdk-core'
 
 gem 'rake', require: false
 
-gem 'oj' unless ENV['PURE_RUBY']
+if !ENV['PURE_RUBY']
+  if ENV['OLD_OJ']
+    gem 'oj', '1.3.0'
+  else
+    gem 'oj'
+  end
+end
+
+gem 'json', '1.8.3' if RUBY_VERSION == '1.9.3'
 gem 'ox' unless ENV['PURE_RUBY']
 gem 'libxml-ruby' unless ENV['PURE_RUBY']
 gem 'nokogiri' unless ENV['PURE_RUBY']
@@ -15,27 +23,16 @@ group :test do
   gem 'cucumber'
   gem 'webmock'
   gem 'simplecov', require: false
-  gem 'coveralls', require: false
+  gem 'coveralls', require: false if RUBY_VERSION > '1.9.3'
   gem 'json-schema'
-  gem 'rest-client' # used for presigned-post integration test
+  gem 'multipart-post'
 end
 
 group :docs do
-
-  gem 'yard', :git => 'https://github.com/trevorrowe/yard.git', branch: 'frameless'
+  gem 'yard', '0.9.5'
   gem 'yard-sitemap', '~> 1.0'
   gem 'rdiscount'
-
-  gem 'nanoc' # guide
-
-  # guide - syntax highlight
-  gem 'nokogiri'
-  gem 'coderay'
-
-  # guide - local preview
-  gem 'adsf' # a dead simple fileserver
-  gem 'guard-nanoc'
-
+  gem 'kramdown' # using this to fix poorly formatted HTML in API docs
 end
 
 group :release do

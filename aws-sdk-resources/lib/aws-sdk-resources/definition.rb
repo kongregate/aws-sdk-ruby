@@ -51,9 +51,23 @@ module Aws
 
       def define_batch_actions(namespace, resource, batch_actions)
         batch_actions.each do |name, definition|
-          method_name = underscore(name)
+          method_name = "batch_" + underscore(name)
+          method_name += '!' if dangerous?(name, definition)
           operation = build_operation(namespace, resource, definition)
           resource.add_batch_operation(method_name, operation)
+        end
+      end
+
+      def dangerous?(name, definition)
+        if
+          name.match(/delete/i) ||
+          name.match(/terminate/i) ||
+          definition['request']['operation'].match(/delete/i) ||
+          definition['request']['operation'].match(/terminate/i)
+        then
+          true
+        else
+          false
         end
       end
 
@@ -238,40 +252,49 @@ module Aws
 
       def builder_sources(sources)
         sources.map do |definition|
-          send("#{definition['source']}_builder_source", definition)
+          send("#{definition['source']}_builder_source", definition, sources)
         end
       end
 
-      def input_builder_source(definition)
+      def input_builder_source(definition, sources)
+        arguments = sources.select { |s| s['source'] == 'input' }
         BuilderSources::Argument.new({
+          source: arguments.index(definition),
           target: underscore(definition['target']),
         })
       end
 
-      def identifier_builder_source(definition)
+      def identifier_builder_source(definition, _)
         BuilderSources::Identifier.new({
           source: underscore(definition['name']),
           target: underscore(definition['target']),
         })
       end
 
-      def data_builder_source(definition)
+      def data_builder_source(definition, _)
         BuilderSources::DataMember.new({
           source: underscore(definition['path']),
           target: underscore(definition['target']),
         })
       end
 
-      def requestParameter_builder_source(definition)
+      def requestParameter_builder_source(definition, _)
         BuilderSources::RequestParameter.new({
           source: underscore(definition['path']),
           target: underscore(definition['target']),
         })
       end
 
-      def response_builder_source(definition)
+      def response_builder_source(definition, _)
         BuilderSources::ResponsePath.new({
           source: underscore(definition['path']),
+          target: underscore(definition['target']),
+        })
+      end
+
+      def string_builder_source(definition, _)
+        BuilderSources::ResponsePath.new({
+          source: underscore(definition['value']),
           target: underscore(definition['target']),
         })
       end

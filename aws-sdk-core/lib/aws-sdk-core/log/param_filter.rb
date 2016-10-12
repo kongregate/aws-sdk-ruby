@@ -1,4 +1,5 @@
 require 'pathname'
+require 'set'
 
 module Aws
   module Log
@@ -10,7 +11,7 @@ module Aws
       #
       # ** DO NOT EDIT THE FOLLOWING LINE OF CODE **
       #
-      SENSITIVE = [:admin_contact, :artifact_credentials, :auth_code, :base_32_string_seed, :copy_source_sse_customer_key, :new_password, :old_password, :password, :plaintext, :private_key, :qr_code_png, :registrant_contact, :secret_access_key, :shared_secret, :sse_customer_key, :ssekms_key_id, :tech_contact, :username]
+      SENSITIVE = [:access_token, :admin_contact, :artifact_credentials, :auth_code, :base_32_string_seed, :client_id, :client_secret, :copy_source_sse_customer_key, :id_token, :local_console_password, :new_password, :old_password, :password, :plaintext, :previous_password, :private_key, :proposed_password, :public_key, :qr_code_png, :refresh_token, :registrant_contact, :secret_access_key, :secret_hash, :shared_secret, :sse_customer_key, :ssekms_key_id, :tech_contact, :trust_password, :upload_credentials, :username, :value]
 
       def initialize(options = {})
         @filters = Set.new(SENSITIVE + Array(options[:filter]))

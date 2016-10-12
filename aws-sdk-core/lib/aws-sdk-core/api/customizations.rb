@@ -145,10 +145,50 @@ module Aws
 
       api('s3') do |api|
         api['metadata'].delete('signatureVersion')
+        if ENV['DOCSTRINGS']
+          api['shapes']['AccelerateBoolean'] = { 'type' => 'boolean' }
+          api['operations'].each do |operation_name, operation|
+            next if %w(CreateBucket ListBuckets DeleteBucket).include?(operation_name)
+            if input_ref = operation['input']
+              input_shape = api['shapes'][input_ref['shape']]
+              input_shape['members']['UseAccelerateEndpoint'] = {
+                'shape' => 'AccelerateBoolean'
+              }
+            end
+          end
+        end
+
+        api['shapes']['ExpiresString'] = { 'type' => 'string' }
+        %w(HeadObjectOutput GetObjectOutput).each do |shape|
+          members = api['shapes'][shape]['members']
+          # inject ExpiresString directly after Expires
+          api['shapes'][shape]['members'] = members.inject({}) do |h, (k,v)|
+            h[k] = v
+            if k == 'Expires'
+              h['ExpiresString'] = {
+                'shape' => 'ExpiresString',
+                'location' => 'header',
+                'locationName' => 'Expires',
+              }
+            end
+            h
+          end
+        end
+      end
+
+      doc('s3') do |docs|
+        if ENV['DOCSTRINGS']
+          docs['shapes']['AccelerateBoolean'] = {}
+          docs['shapes']['AccelerateBoolean']['refs'] = {}
+          docs['shapes']['AccelerateBoolean']['base'] = 'When <tt>true</tt>, the "https://BUCKETNAME.s3-accelerate.amazonaws.com" endpoint will be used.'
+        end
       end
 
       plugins('s3', add: %w(
+        Aws::Plugins::S3Accelerate
+        Aws::Plugins::S3Dualstack
         Aws::Plugins::S3BucketDns
+        Aws::Plugins::S3BucketNameRestrictions
         Aws::Plugins::S3Expect100Continue
         Aws::Plugins::S3Http200Errors
         Aws::Plugins::S3GetBucketLocationFix
@@ -166,6 +206,7 @@ module Aws
 
       plugins('sqs', add: %w(
         Aws::Plugins::SQSQueueUrls
+        Aws::Plugins::SQSMd5s
       ))
 
       plugins('swf', add: %w(

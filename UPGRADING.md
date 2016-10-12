@@ -1,5 +1,102 @@
 # Upgrade Notes
 
+## `aws-sdk-core` - v2.5.0
+
+* Due to customer requests, and an analysis of the tradeoffs, we're changing the
+  shared configuration features from an opt-in feature to an opt-out feature.
+  With this version, the changes to default region support and to the default
+  credential provider chain are on by default, and the `AWS_SDK_LOAD_CONFIG`
+  environment variable will not be used for any purpose.
+
+  If you wish to opt-out of the new functionality for backwards compatibility
+  reasons, set the `AWS_SDK_CONFIG_OPT_OUT` environment variable to any value.
+  That will return shared configuration and credential provider chain behavior
+  to the behaviors present before version `2.4.0` of the SDK.
+
+## `aws-sdk-core` - v2.4.0
+
+* We are adding support for the shared configuration file used by the CLI,
+  `~/.aws/config`. This support provides new credential sources for the default
+  credential provider chain, and for default region selection. Since these
+  changes could technically be a breaking change to default (and commonly used)
+  behavior, there is a feature flag around this functionality.
+  
+  To use these new features, you must set the `AWS_SDK_LOAD_CONFIG` environment
+  variable. If not set, the existing default behavior will continue.
+  
+  Two other upgrading notes are worth keeping in mind for this release:
+  
+  * Private interfaces regarding handling of configuration were changed for this
+    feature. Those interfaces were marked `@api private`, signifying that they
+    should not have been used outside the SDK for development. If you were
+    using those classes and functions, you may experience breakage from this
+    change.
+  * The INI Parser for the shared credential file does have a behavior change
+    that could break existing files. The old parser was insensitive to leading
+    whitespace, but maintaining that behavior can cause unexpected results. It
+    should have been whitespace sensitive all along. If you find behavior
+    changes after upgrading, remove leading whitespace from your shared
+    credential files.
+
+## `aws-sdk-core` - v2.3.0
+
+* We have replaced the previous `endpoints.json` document that shipped with
+  the `aws-sdk-core` gem. The old file defined mapping heuristic for
+  constructing regionalized endpoints for services. The new document
+  defines explicit regions and services within partitions.
+
+  The old and new document and interfaces were private implementation
+  details and were not documented. Any usage of the old document
+  or classes would be broken in a 2.3.0 update. Normal SDK usage should
+  be completely unaffected by the update. This upgrading note
+  exists only as a warning to users who were reaching into the
+  internals.
+
+## `aws-sdk-core` - v2.2.0
+
+* We are moving the `Aws::S3::Client` class to use Signature Version 4 by
+  default in all regions. This replaces the previous behavior, in which
+  some regions would default to a previous signature version, which we called
+  the 's3' signer. This signer would then attempt to upgrade to the 'v4' signer
+  only when necessary.
+
+  This signature switching behavior has required an increasing amount of special
+  support code, and risks the creation of unexpected API calls when we have to
+  upgrade signature versions on the fly. It also has been prone to creating
+  issues, the most recent of which was visible when using AWS Key Management
+  Service alongside the Amazon S3 client for multipart uploads. KMS requires
+  signature version 4, and the current Amazon S3 client logic had difficulty
+  'raising' the part upload requests to SigV4 with the current code path.
+  Defaulting to signature version 4 across S3 should help simplify these issues,
+  improve maintainability, and reduce unexpected extra API calls.
+
+  Existing code should continue to work with this change. The new signature
+  version doesn't require anything different from you as the caller of the
+  client code. If you wish, however, you still have the option to use the
+  previous signature version, though there will be no fallbacks to signature
+  version 4 - you are responsible for ensuring that your operation supports the
+  old signature version in the region your client is operating in, and handling
+  any errors that are thrown. You can use the previous signer like so:
+
+  ```ruby
+  client = Aws::S3::Client.new(signature_version: 's3')
+  ```
+
+## `aws-sdk-resources` - v2.2
+
+* All batch resource operations have been renamed to make it clear
+  that they operate in batches on the entire collection.
+
+  * All batch operations are now prefixed with `batch_`, e.g. `#start`
+    is now `#batch_start`.
+
+  * All batch operations named "delete" or "terminate" are now suffixed
+    with a `!`, e.g. `#delete` is now `#batch_delete!`
+
+  For backwards compatibility, existing batch methods still respond
+  to their old names with a deprecation warning. New batch operations
+  will strictly follow the new conventions.
+
 ## `aws-sdk-resources` - v2.1.31
 
 * A bug was discovered in `Aws::S3::Object#copy_from` and

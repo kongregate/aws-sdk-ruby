@@ -1,3 +1,5 @@
+require 'openssl'
+
 module Seahorse
   module Client
     module NetHttp
@@ -18,8 +20,14 @@ module Seahorse
         NETWORK_ERRORS = [
           SocketError, EOFError, IOError, Timeout::Error,
           Errno::ECONNABORTED, Errno::ECONNRESET, Errno::EPIPE,
-          Errno::EINVAL, Errno::ETIMEDOUT, OpenSSL::SSL::SSLError
+          Errno::EINVAL, Errno::ETIMEDOUT, OpenSSL::SSL::SSLError,
+          Errno::EHOSTUNREACH, Errno::ECONNREFUSED
         ]
+
+        # does not exist in Ruby 1.9.3
+        if OpenSSL::SSL.const_defined?(:SSLErrorWaitReadable)
+          NETWORK_ERRORS << OpenSSL::SSL::SSLErrorWaitReadable
+        end
 
         # @api private
         DNS_ERROR_MESSAGE = 'getaddrinfo: nodename nor servname provided, or not known'

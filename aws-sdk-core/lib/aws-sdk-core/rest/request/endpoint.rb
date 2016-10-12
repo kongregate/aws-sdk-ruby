@@ -37,7 +37,7 @@ module Aws
         end
 
         def param_value_for_placeholder(placeholder, params)
-          value = params[param_name(placeholder)]
+          value = params[param_name(placeholder)].to_s
           placeholder.include?('+') ?
             value.gsub(/[^\/]+/) { |v| escape(v) } :
             escape(value)
@@ -73,6 +73,15 @@ module Aws
                   raise NotImplementedError, msg
                 end
 
+              when ListShape
+                if StringShape === member.shape.member.shape
+                  parts += list_of_strings(member.location_name, params[member_name])
+                else
+                  msg = "Only list of strings supported, got "
+                  msg << member.shape.member.shape.class.name
+                  raise NotImplementedError, msg
+                end
+
               # unsupported querystring shape
               else
                 raise NotImplementedError
@@ -101,9 +110,10 @@ module Aws
           list
         end
 
-        def querystring_param(key, value)
-          param_name = member.location_name
-          param_value = params[member_name]
+        def list_of_strings(name, values)
+          values.map do |value|
+            "#{name}=#{escape(value)}"
+          end
         end
 
         def escape(string)

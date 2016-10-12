@@ -724,6 +724,63 @@ module Aws
 
           end
 
+          describe 'batch actions' do
+
+            it 'supports operations on batches' do
+              definition['resources'] = {
+                'Thing' => {
+                  'identifiers' => [
+                    { 'name' => 'Name' }
+                  ],
+                  'batchActions' => {
+                    'Update' => {
+                      'request' => {
+                        'operation' => 'UpdateThings',
+                        'params' => [
+                          { "target" => "ThingNames[]", "source" => "identifier", "name" => "Name" }
+                        ]
+                      }
+                    },
+                    'Delete' => {
+                      'request' => {
+                        'operation' => 'DeleteThings',
+                        'params' => [
+                          { "target" => "ThingNames[]", "source" => "identifier", "name" => "Name" }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+
+              client_resp = double('client-response')
+
+              expect(client).to receive(:update_things).
+                with(thing_names: ['thing1', 'thing2'], foo:'bar').
+                and_return(client_resp)
+
+              expect(client).to receive(:delete_things).
+                with(thing_names: ['thing1', 'thing2']).
+                and_return(client_resp)
+
+              apply_definition
+
+              thing1 = namespace::Thing.new('thing1', client: client)
+              thing2 = namespace::Thing.new('thing2', client: client)
+              things = Batch.new(namespace::Thing, [thing1, thing2])
+
+              expect(things).to respond_to(:batch_update)
+              expect(things).to respond_to(:batch_delete!)
+
+              expect {
+                things.batch_update('abc', 'mno')
+              }.to raise_error(ArgumentError, /wrong number of arguments/)
+
+              things.batch_update(foo:'bar')
+              things.batch_delete!
+            end
+          end
+
           describe 'has many associations' do
 
             it 'returns an enumerable' do
@@ -819,6 +876,63 @@ module Aws
               ])
               expect(doo_dads.all?(&:data_loaded?))
               expect(thing.doo_dads.limit(3).map(&:identifiers)).to eq(doo_dads[0..2].map(&:identifiers))
+
+              # raise on collection construction with string args
+              expect {
+                thing.doo_dads('doo-dad-name')
+              }.to raise_error(ArgumentError, /expected Hash, got String/)
+
+              # raise on collection construction with wrong arity
+              expect {
+                thing.doo_dads(1,2,3)
+              }.to raise_error(ArgumentError, /wrong number of arguments/)
+            end
+
+            it 'does not attempt to enumerate non-pageable responses' do
+              definition['resources'] = {
+                'Thing' => {
+                  'identifiers' => [{ 'name' => 'Name' }],
+                  'shape' => 'ThingShape',
+                  'hasMany' => {
+                    'DooDads' => {
+                      'request' => { 'operation' => 'ListDooDads' },
+                      'resource' => {
+                        'type' => 'DooDad',
+                        'identifiers' => [
+                          {
+                            'target' => 'Name',
+                            'source' => 'response',
+                            'path' => 'DooDads[].Name'
+                          },
+                        ]
+                      }
+                    }
+                  }
+                },
+                'DooDad' => {
+                  'identifiers' => [
+                    { 'name' => 'Name' },
+                  ]
+                }
+              }
+              shapes['StringShape'] = { 'type' => 'string' }
+              shapes['ThingShape'] = {
+                'type' => 'structure',
+                'members' => {
+                  'Type' => { 'shape' => 'StringShape' }
+                }
+              }
+
+              api_model['operations']['ListDooDads'] = {}
+
+              apply_definition
+
+              allow(client).to receive(:list_doo_dads).and_return(
+                double('client-resp', data: {doo_dads:[]})
+              )
+
+              thing = namespace::Thing.new(name:'thing-name')
+              expect(thing.doo_dads.to_a).to eq([])
             end
 
           end

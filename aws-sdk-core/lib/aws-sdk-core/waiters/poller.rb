@@ -66,21 +66,23 @@ module Aws
       end
 
       def matches_path?(acceptor, response)
-        JMESPath.search(path(acceptor), response.data) == acceptor['expected']
+        if response.data
+          JMESPath.search(path(acceptor), response.data) == acceptor['expected']
+        else
+          false
+        end
       end
 
       def matches_pathAll?(acceptor, response)
-        values = JMESPath.search(path(acceptor), response.data)
-        Array === values &&
-          values.count > 0 &&
+        non_empty_array(acceptor, response) do |values|
           values.all? { |value| value == acceptor['expected'] }
+        end
       end
 
       def matches_pathAny?(acceptor, response)
-        values = JMESPath.search(path(acceptor), response.data)
-        Array === values &&
-          values.count > 0 &&
+        non_empty_array(acceptor, response) do |values|
           values.any? { |value| value == acceptor['expected'] }
+        end
       end
 
       def matches_status?(acceptor, response)
@@ -89,11 +91,22 @@ module Aws
 
       def matches_error?(acceptor, response)
         Aws::Errors::ServiceError === response.error &&
-        response.error.code == acceptor['expected']
+        response.error.code == acceptor['expected'].gsub('.', '')
       end
 
       def path(acceptor)
-        acceptor['argument'].gsub(/\w+/) { |s| Seahorse::Util.underscore(s) }
+        acceptor['argument'].gsub(/(?<![`'])\b\w+\b(?![`'])/) do |str|
+          Seahorse::Util.underscore(str)
+        end
+      end
+
+      def non_empty_array(acceptor, response, &block)
+        if response.data
+          values = JMESPath.search(path(acceptor), response.data)
+          Array === values && values.count > 0 ? yield(values) : false
+        else
+          false
+        end
       end
 
       def underscore(str)

@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'tempfile'
 
 module Aws
   module Signers
@@ -17,8 +18,8 @@ module Aws
         req
       end
 
-      let(:now) { double('now') }
-      let(:utc) { double('utc-time') }
+      let(:now) { Time.now }
+      let(:utc) { now.utc }
 
       before(:each) {
         allow(Time).to receive(:now).and_return(now)
@@ -67,13 +68,19 @@ module Aws
             Digest::SHA256.hexdigest('abc'))
         end
 
-        it 'reads the http request payload in 1mb chunks' do
-          body = double('http-payload')
-          allow(body).to receive(:rewind)
-          expect(body).to receive(:read).with(1024 * 1024) { 'a' }
-          expect(body).to receive(:read).with(1024 * 1024) { 'b' }
-          expect(body).to receive(:read).with(1024 * 1024) { 'c' }
-          expect(body).to receive(:read).with(1024 * 1024) { nil }
+        it 'computes the checksum of files without loading them into memory' do
+          body = Tempfile.new('tempfile')
+          body.write('abc')
+          body.flush
+          expect(body).not_to receive(:read)
+          expect(body).not_to receive(:rewind)
+          http_request.body = body
+          expect(sign.headers['X-Amz-Content-Sha256']).to eq(
+            Digest::SHA256.hexdigest('abc'))
+        end
+
+        it 'reads non-file IO objects into  memory to compute checksusm' do
+          body = StringIO.new('abc')
           http_request.body = body
           expect(sign.headers['X-Amz-Content-Sha256']).to eq(
             Digest::SHA256.hexdigest('abc'))
@@ -99,7 +106,7 @@ module Aws
           http_request.headers['Bar2'] = '"bar  bar"'
           http_request.body = StringIO.new('http-body')
           http_request.headers['Content-Length'] = 9
-          expect(sign.headers['Authorization']).to eq('AWS4-HMAC-SHA256 Credential=akid/20120102/REGION/SERVICE/aws4_request, SignedHeaders=bar;bar2;content-length;foo;host;x-amz-content-sha256;x-amz-date, Signature=6b40912702f78866fcd13804e2bc2703bf5f73264ebe0fa54a28d16bcdddb88c')
+          expect(sign.headers['Authorization']).to eq('AWS4-HMAC-SHA256 Credential=akid/20120102/REGION/SERVICE/aws4_request, SignedHeaders=bar;bar2;foo;host;x-amz-content-sha256;x-amz-date, Signature=7066fb1a3fd7e436114d029b208143fdba353169990d430be4562a9c1d2749d5')
         end
 
       end
@@ -113,6 +120,16 @@ module Aws
           http_request.headers['Mno'] = '3'
           http_request.headers['Authorization'] = '4'
           http_request.headers['authorization'] = '5'
+          expect(signer.signed_headers(http_request)).to eq('abc;mno;xyz')
+        end
+
+        it 'ignores certain headers such as user-agent and cache-control' do
+          http_request.headers = {}
+          http_request.headers['Xyz'] = '1'
+          http_request.headers['Abc'] = '2'
+          http_request.headers['Mno'] = '3'
+          http_request.headers['Cache-Control'] = '4'
+          http_request.headers['User-Agent'] = '5'
           expect(signer.signed_headers(http_request)).to eq('abc;mno;xyz')
         end
 

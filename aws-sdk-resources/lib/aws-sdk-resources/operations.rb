@@ -108,6 +108,7 @@ module Aws
         # @option (see Base#call)
         # @return [Collection]
         def call(options)
+          validate_args!(options)
           Collection.new(self, options)
         end
 
@@ -123,9 +124,25 @@ module Aws
 
         private
 
+        def validate_args!(options)
+          args = options[:args]
+          unless args.count == 0 || args.count == 1
+            msg = "wrong number of arguments (given #{args.count}, expected 0..1)"
+            raise ArgumentError, msg
+          end
+          unless args[0].nil? || Hash === args[0]
+            raise ArgumentError, "expected Hash, got #{args[0].class}"
+          end
+        end
+
         def all_batches(options, &block)
-          @request.call(options).each do |response|
-            yield(@builder.build(options.merge(response:response)))
+          resp = @request.call(options)
+          if resp.respond_to?(:each)
+            resp.each do |response|
+              yield(@builder.build(options.merge(response:response)))
+            end
+          else
+            yield(@builder.build(options.merge(response:resp)))
           end
         end
 
@@ -209,9 +226,7 @@ module Aws
             param.apply(params_hash, options)
           end
 
-          user_params = options[:params] || {}
-          params = deep_merge(user_params, params_hash)
-          resp = resource.client.wait_until(@waiter_name, params, &options[:block])
+          resp = resource.client.wait_until(@waiter_name, params_hash, &options[:block])
 
           resource_opts = resource.identifiers.dup
           if @path && resp.respond_to?(:data)
@@ -221,16 +236,45 @@ module Aws
           resource.class.new(resource_opts)
         end
 
-        def deep_merge(obj1, obj2)
-          case obj1
-          when Hash then obj1.merge(obj2) { |key, v1, v2| deep_merge(v1, v2) }
-          when Array then obj2 + obj1
-          else obj2
-          end
-        end
-
       end
 
+      # @api private
+      class DeprecatedOperation
+
+        def initialize(options = {})
+          @name = options[:name]
+          @deprecated_name = options[:deprecated_name]
+          @resource_class = options[:resource_class]
+          @operation = @resource_class.batch_operation(@name)
+          @warned = false
+        end
+
+        def call(*args)
+          unless @warned
+            @warned = true
+            warn(deprecation_warning)
+          end
+          @operation.call(*args)
+        end
+
+        private
+
+        def deprecation_warning
+          "DEPRECATION WARNING: called deprecated batch method " +
+          "`##{@deprecated_name}` on a batch of `#{@resource_class.name}` " +
+          "objects; use `##{@name}` instead"
+        end
+
+        class << self
+
+          def define(options = {})
+            klass = options[:resource_class]
+            deprecated_name = options[:deprecated_name]
+            klass.add_batch_operation(deprecated_name, new(options))
+          end
+
+        end
+      end
     end
   end
 end
